@@ -78,7 +78,7 @@ func (a *App) start() {
 	for _, s := range a.servers {
 		serv := s
 		go func() {
-			err := serv.Start()
+			err := serv.Run()
 			if err == http.ErrServerClosed {
 				fmt.Printf("服务器%s已关闭\n", serv.name)
 			} else {
@@ -112,13 +112,21 @@ func (a *App) waitSignal() {
 
 func (a *App) shutdown() {
 	log.Println("开始拒绝请求")
+	ctx, cancelFunc := context.WithTimeout(context.Background(), a.waitTimeout)
+	defer cancelFunc()
 	for _, s := range a.servers {
 		serv := s
-		serv.RejectReq()
+		for _, callback := range serv.beforeCallback {
+			wg.Add(1)
+			callback := callback
+			go func() {
+				defer wg.Done()
+				callback(ctx)
+			}()
+		}
 	}
-	log.Println("等待正在执行请求完结")
+	wg.Wait()
 	//在这里等待一段时间
-	time.Sleep(a.waitTimeout)
 	log.Println("开始关闭服务器")
 	a.stop()
 	log.Println("开始执行callback")

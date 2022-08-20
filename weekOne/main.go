@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"geekbang-go/weekOne/middleware"
 	"geekbang-go/weekOne/service"
 	"log"
 	"math/rand"
@@ -11,16 +12,19 @@ import (
 )
 
 func main() {
-	s1 := service.NewServer("business", "localhost:8080")
-	s1.Handle("/", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = writer.Write([]byte("hello business"))
-	}))
+	shutdown := middleware.NewMiddlewareShutdown()
+	s1 := service.NewServer("business", "localhost:8080", service.WithBeforeCallback(shutdown.ShutdownCallback()))
+	s1.Use(shutdown.RejectRequest())
+	s1.Get("/", func(ctx *service.Context) {
+		_, _ = ctx.WriteString(http.StatusOK, "hello business")
+	})
 
-	s2 := service.NewServer("admin", "localhost:8081")
-	s2.Handle("/", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = writer.Write([]byte("hello admin"))
-	}))
-
+	shutdown2 := middleware.NewMiddlewareShutdown()
+	s2 := service.NewServer("admin", "localhost:8081", service.WithBeforeCallback(shutdown2.ShutdownCallback()))
+	s2.Use(shutdown2.RejectRequest())
+	s2.Get("/", func(ctx *service.Context) {
+		_, _ = ctx.WriteString(http.StatusOK, "hello admin")
+	})
 	app := service.NewApp([]*service.Server{s1, s2}, service.WithShutdownCallback(StoreCacheToDBCallback))
 	app.StartAndServe()
 }

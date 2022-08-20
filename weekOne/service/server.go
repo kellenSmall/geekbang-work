@@ -5,49 +5,65 @@ import (
 	"net/http"
 )
 
-type serverMux struct {
-	reject bool
-	*http.ServeMux
-}
+type ServerOption func(server *Server)
 
-func (s *serverMux) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if s.reject {
-		writer.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = writer.Write([]byte("服务已关闭"))
-		return
+func WithBeforeCallback(rejectCallback ShutdownCallback) ServerOption {
+	return func(server *Server) {
+		server.beforeCallback = append(server.beforeCallback, rejectCallback)
 	}
-
-	s.ServeMux.ServeHTTP(writer, request)
 }
 
 type Server struct {
-	srv  *http.Server
-	name string
-	mux  *serverMux
+	name           string
+	serv           *http.Server
+	mux            *mapHandlerRouter
+	beforeCallback []ShutdownCallback
 }
 
-func NewServer(name string, addr string) *Server {
-	mux := &serverMux{ServeMux: http.NewServeMux()}
-	return &Server{
-		srv:  &http.Server{Addr: addr, Handler: mux},
+var _ Route = &Server{}
+
+func NewServer(name string, addr string, opts ...ServerOption) *Server {
+	router := NewMapHandlerRouter()
+	s := &Server{
 		name: name,
-		mux:  mux,
+		serv: &http.Server{
+			Addr:    addr,
+			Handler: router,
+		},
+		mux:            router,
+		beforeCallback: make([]ShutdownCallback, 0, 5),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
-func (s *Server) Handle(pattern string, handler http.Handler) {
-	s.mux.Handle(pattern, handler)
+func (s *Server) Run() error {
+	return s.serv.ListenAndServe()
 }
 
-func (s *Server) Start() error {
-	return s.srv.ListenAndServe()
+func (s *Server) Get(path string, handler Handler) {
+	s.mux.Get(path, handler)
 }
 
-// RejectReq true 拒绝请求
-func (s *Server) RejectReq() {
-	s.mux.reject = true
+func (s *Server) Put(path string, handler Handler) {
+	s.mux.Put(path, handler)
+}
+
+func (s *Server) Post(path string, handler Handler) {
+	s.mux.Post(path, handler)
+}
+
+func (s *Server) Delete(path string, handler Handler) {
+	s.mux.Delete(path, handler)
+}
+
+func (s *Server) Use(handler Handler) {
+	s.mux.Use(handler)
 }
 
 func (s *Server) Stop(ctx context.Context) error {
-	return s.srv.Shutdown(ctx)
+	return s.serv.Shutdown(ctx)
 }
