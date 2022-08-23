@@ -13,6 +13,8 @@ import (
 func main() {
 	s1 := service.NewServer("business", "localhost:8080")
 	s1.Handle("/", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		request.ParseForm()
+		fmt.Println(request.PostForm)
 		_, _ = writer.Write([]byte("hello business"))
 	}))
 
