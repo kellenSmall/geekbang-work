@@ -1,7 +1,7 @@
 package homework
 
 import (
-	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"reflect"
@@ -110,6 +110,7 @@ type Accessor struct {
 	checkString map[string]struct{}
 }
 
+// 代码实现还是有问题
 func (ac *Accessor) setTableName() *Accessor {
 	ac.name = ac.typ.Name()
 	return ac
@@ -163,6 +164,7 @@ func (ac *Accessor) rangeFields() *Accessor {
 	return ac
 }
 
+// 生成 sql
 func (ac *Accessor) builder() (string, []any) {
 	//INSERT INTO `Customer`(`CreateTime`,`UpdateTime`,`Id`,`NickName`,`Age`,`Address`,`Company`) VALUES(?,?,?,?,?,?,?);
 	sb := strings.Builder{}
@@ -192,8 +194,8 @@ func (ac *Accessor) deep(value reflect.Value) {
 		fdVal := value.Field(i)
 		switch fdVal.Type().Kind() {
 		case reflect.Struct:
-			switch fdVal.Interface().(type) {
-			case sql.NullString, *sql.NullString:
+			switch fdVal.Type().Implements(reflect.TypeOf((*driver.Valuer)(nil)).Elem()) {
+			case true:
 				ac.addData(fdt, fdVal)
 			default:
 				if !fdt.Anonymous {
