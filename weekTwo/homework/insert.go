@@ -10,79 +10,88 @@ import (
 
 var errInvalidEntity = errors.New("invalid entity")
 
-//func InsertStmt(entity interface{}) (string, []interface{}, error) {
-//	if entity == nil {
-//		return "", nil, errInvalidEntity
-//	}
-//	/* 代码有点丑
-//	val := reflect.ValueOf(entity)
-//	typ := reflect.TypeOf(entity)
-//	if typ.Kind() != reflect.Struct && (typ.Kind() == reflect.Ptr && typ.Elem().Kind() != reflect.Struct) {
-//		return "", nil, errInvalidEntity
-//	}
-//	if typ.Kind() == reflect.Ptr {
-//		typ = typ.Elem()
-//		val = val.Elem()
-//	}
-//	if typ.Kind() == reflect.Struct && typ.NumField() == 0 {
-//		return "", nil, errInvalidEntity
-//	}
-//	// 检测 entity 是否符合我们的要求
-//	// 我们只支持有限的几种输入
-//	sb := strings.Builder{}
-//	sb.WriteString("INSERT INTO ")
-//	if typ.Kind() == reflect.Struct {
-//		name := typ.Name()
-//		fnum := typ.NumField()
-//		args := make([]any, 0, fnum)
-//		str := ""
-//		ps := ""
-//		for i := 0; i < fnum; i++ {
-//			fd := typ.Field(i)
-//			fdVal := val.Field(i)
-//			fdt := fdVal.Type()
-//			if fdt.Kind() == reflect.Struct && fdt.String() != "sql.NullString" {
-//				subnum := fdt.NumField()
-//				for j := 0; j < subnum; j++ {
-//					field := fdt.Field(j)
-//					subfdval := fdVal.Field(j)
-//					args = append(args, subfdval.Interface())
-//					str += "?,"
-//					ps += fmt.Sprintf("`%s`,", field.Name)
-//				}
-//			}
-//			if fdt.Kind() != reflect.Struct || fdt.String() == "sql.NullString" {
-//				args = append(args, fdVal.Interface())
-//				str += "?,"
-//				ps += fmt.Sprintf("`%s`,", fd.Name)
-//			}
-//		}
-//		str = strings.TrimRight(str, ",")
-//		ps = strings.TrimRight(ps, ",")
-//		sb.WriteString(fmt.Sprintf("`%s`(%s) VALUES(%s);", name, ps, str))
-//		return sb.String(), args, nil
-//	}*/
-//
-//	// 使用 strings.Builder 来拼接 字符串
-//	// bd := strings.Builder{}
-//
-//	// 构造 INSERT INTO XXX，XXX 是你的表名，这里我们直接用结构体名字
-//
-//	// 遍历所有的字段，构造出来的是 INSERT INTO XXX(col1, col2, col3)
-//	// 在这个遍历的过程中，你就可以把参数构造出来
-//	// 如果你打算支持组合，那么这里你要深入解析每一个组合的结构体
-//	// 并且层层深入进去
-//
-//	// 拼接 VALUES，达成 INSERT INTO XXX(col1, col2, col3) VALUES
-//
-//	// 再一次遍历所有的字段，要拼接成 INSERT INTO XXX(col1, col2, col3) VALUES(?,?,?)
-//	// 注意，在第一次遍历的时候我们就已经拿到了参数的值，所以这里就是简单拼接 ?,?,?
-//
-//	// return bd.String(), args, nil
-//	panic("implement me")
-//}
-
 func InsertStmt(entity interface{}) (string, []interface{}, error) {
+	// 对参数 检测
+	// 检测 entity 是否符合我们的要求
+	// 我们只支持有限的几种输入
+	if entity == nil {
+		return "", nil, errInvalidEntity
+	}
+	rfval := reflect.ValueOf(entity)
+	rfTyp := rfval.Type()
+	if rfTyp.Kind() != reflect.Struct && !(rfTyp.Kind() == reflect.Ptr && rfTyp.Elem().Kind() == reflect.Struct) {
+		return "", nil, errInvalidEntity
+	}
+	if rfTyp.Kind() == reflect.Ptr {
+		rfTyp = rfTyp.Elem()
+		rfval = rfval.Elem()
+	}
+	if rfTyp.NumField() == 0 {
+		return "", nil, errInvalidEntity
+	}
+	// 使用 strings.Builder 来拼接 字符串
+	sb := strings.Builder{}
+	structName := rfTyp.Name()
+	// 构造 INSERT INTO XXX，XXX 是你的表名，这里我们直接用结构体名字
+	// 遍历所有的字段，构造出来的是 INSERT INTO XXX(col1, col2, col3)
+	sb.WriteString(fmt.Sprintf("INSERT INTO `%s`", structName))
+	sub, args := buildString(rfval)
+	// 在这个遍历的过程中，你就可以把参数构造出来
+	// 如果你打算支持组合，那么这里你要深入解析每一个组合的结构体
+	// 并且层层深入进去
+	// 拼接 VALUES，达成 INSERT INTO XXX(col1, col2, col3) VALUES
+	// 再一次遍历所有的字段，要拼接成 INSERT INTO XXX(col1, col2, col3) VALUES(?,?,?)
+	// 注意，在第一次遍历的时候我们就已经拿到了参数的值，所以这里就是简单拼接 ?,?,?
+	// return bd.String(), args, nil
+	sb.WriteString(sub)
+
+	return sb.String(), args, nil
+}
+
+func buildString(value reflect.Value) (string, []any) {
+	names, args, ps := deep(value)
+	namesStr := strings.Join(names, ",")
+	psStr := strings.Join(ps, ",")
+	res := fmt.Sprintf("(%s) VALUES(%s);", namesStr, psStr)
+	return res, args
+}
+
+func deep(value reflect.Value) ([]string, []any, []string) {
+	typ := value.Type()
+	rfval := value
+	numField := typ.NumField()
+	names := make([]string, 0, numField)
+	args := make([]any, 0, numField)
+	ps := make([]string, 0, numField)
+	check := make(map[string]struct{}, numField)
+	for i := 0; i < numField; i++ {
+		fd := typ.Field(i)
+		rfd := rfval.Field(i)
+		if (fd.Type.Implements(reflect.TypeOf((*driver.Valuer)(nil)).Elem())) ||
+			!fd.Anonymous || fd.Type.Kind() != reflect.Struct {
+			name := fmt.Sprintf("`%s`", fd.Name)
+			if _, ok := check[name]; !ok {
+				names = append(names, name)
+				args = append(args, rfd.Interface())
+				ps = append(ps, "?")
+				check[name] = struct{}{}
+			}
+		} else {
+			sname, sargs, sps := deep(rfd)
+			for i := 0; i < len(sname); i++ {
+				if _, ok := check[sname[i]]; !ok {
+					names = append(names, sname[i])
+					args = append(args, sargs[i])
+					ps = append(ps, sps[i])
+					check[sname[i]] = struct{}{}
+				}
+			}
+		}
+	}
+	return names, args, ps
+}
+
+func InsertStmt2(entity interface{}) (string, []interface{}, error) {
 	if entity == nil {
 		return "", nil, errInvalidEntity
 	}
