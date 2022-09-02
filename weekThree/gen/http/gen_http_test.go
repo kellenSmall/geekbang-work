@@ -17,8 +17,8 @@ func TestGen(t *testing.T) {
 			name: "user service",
 			def: ServiceDefinition{
 				Package: "gen_http",
-				Name:    "UserService",
-				Methods: []ServiceMethod{
+
+				Name: "UserService", Methods: []ServiceMethod{
 					{
 						Name:         "Create",
 						Path:         "/Create",

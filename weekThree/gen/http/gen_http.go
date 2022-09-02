@@ -6,7 +6,7 @@ import (
 )
 
 // 这部分和课堂的很像，但是有一些地方被我改掉了
-const serviceTpl = `package {{ .Package }}
+const ServiceTpl = `package {{ .Package }}
 
 import (
 	"bytes"
@@ -49,7 +49,7 @@ func (s *{{$service}}) {{$me.Name}}(ctx context.Context, req *{{$me.ReqTypeName}
 
 func Gen(writer io.Writer, def ServiceDefinition) error {
 	tpl := template.New("service")
-	tpl, err := tpl.Parse(serviceTpl)
+	tpl, err := tpl.Parse(ServiceTpl)
 	if err != nil {
 		return err
 	}
