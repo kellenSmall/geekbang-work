@@ -75,8 +75,15 @@ func genFiles(src string, defs []http.ServiceDefinition) error {
 		if err != nil {
 			return err
 		}
-
-		filename := abs + string(os.PathSeparator) + "testdata" + string(os.PathSeparator) + underscoreName(def.Name) + "_gen.go"
+		f := abs + string(os.PathSeparator) + "testdata"
+		_, err = os.Stat(f)
+		if errors.Is(err, fs.ErrNotExist) {
+			err = os.MkdirAll(f, 0755)
+			if err != nil {
+				return err
+			}
+		}
+		filename := f + string(os.PathSeparator) + underscoreName(def.Name) + "_gen.go"
 		err = os.WriteFile(filename, bf.Bytes(), 0777)
 		if err != nil {
 			return err
