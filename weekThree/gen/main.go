@@ -144,7 +144,7 @@ func parseServiceDefinition(pkg string, typ annotation.Type) (http.ServiceDefini
 		}
 		funcType, ok := field.Node.Type.(*ast.FuncType)
 		if !ok {
-			return http.ServiceDefinition{}, errors.New("")
+			return http.ServiceDefinition{}, errors.New("gen: 类型错误")
 		}
 		params, ok := parseMethodParamsAndResults(funcType.Params.List)
 		if !ok || params[0] != "context.Context" {
