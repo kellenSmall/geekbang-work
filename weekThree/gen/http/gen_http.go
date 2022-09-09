@@ -5,7 +5,7 @@ import (
 	"text/template"
 )
 
-// 这部分和课堂的很像，但是有一些地方被我改掉了
+// ServiceTpl 这部分和课堂的很像，但是有一些地方被我改掉了
 const ServiceTpl = `package {{ .Package }}
 
 import (
